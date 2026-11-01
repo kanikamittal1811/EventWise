@@ -2,19 +2,19 @@ import { ref, set, update, remove } from 'firebase/database';
 import { database, isFirebaseConfigured } from '../firebase/config';
 import { Task, TaskStatus } from '../../types/task';
 import { TaskFormData } from '../../schemas/task.schema';
-
-const LOCAL_EVENTS_KEY = 'eventwise_demo_events';
+import { LOCAL_EVENTS_KEY, notifyLocalEventsChanged, getLocalDemoEvents } from '../../constants/dummyData';
 
 function getLocalEvents(): any {
-  try {
-    return JSON.parse(localStorage.getItem(LOCAL_EVENTS_KEY) || '{}');
-  } catch {
-    return {};
-  }
+  return getLocalDemoEvents();
 }
 
 function saveLocalEvents(events: any) {
-  localStorage.setItem(LOCAL_EVENTS_KEY, JSON.stringify(events));
+  try {
+    localStorage.setItem(LOCAL_EVENTS_KEY, JSON.stringify(events));
+  } catch (err) {
+    console.warn('[TaskService] Failed to write localStorage:', err);
+  }
+  notifyLocalEventsChanged();
 }
 
 export const TaskService = {
@@ -39,19 +39,24 @@ export const TaskService = {
       updatedAt: now,
     };
 
-    if (!isFirebaseConfigured || !database) {
-      const events = getLocalEvents();
-      if (events[eventId]) {
-        if (!events[eventId].tasks) events[eventId].tasks = {};
-        events[eventId].tasks[taskId] = task;
-        events[eventId].updatedAt = now;
-        saveLocalEvents(events);
-      }
+    const events = getLocalEvents();
+    if (events[eventId]) {
+      if (!events[eventId].tasks) events[eventId].tasks = {};
+      events[eventId].tasks[taskId] = task;
+      events[eventId].updatedAt = now;
+      saveLocalEvents(events);
+    }
+
+    if (!isFirebaseConfigured || !database || eventId.startsWith('demo_')) {
       return taskId;
     }
 
-    await set(ref(database, `events/${eventId}/tasks/${taskId}`), task);
-    await update(ref(database, `events/${eventId}`), { updatedAt: now });
+    try {
+      await set(ref(database, `events/${eventId}/tasks/${taskId}`), task);
+      await update(ref(database, `events/${eventId}`), { updatedAt: now });
+    } catch (err) {
+      console.warn(`[TaskService] Firebase addTask failed for ${eventId}:`, err);
+    }
     return taskId;
   },
 
@@ -68,21 +73,26 @@ export const TaskService = {
       safeUpdates.completedAt = undefined;
     }
 
-    if (!isFirebaseConfigured || !database) {
-      const events = getLocalEvents();
-      if (events[eventId]?.tasks?.[taskId]) {
-        events[eventId].tasks[taskId] = {
-          ...events[eventId].tasks[taskId],
-          ...safeUpdates,
-        };
-        events[eventId].updatedAt = now;
-        saveLocalEvents(events);
-      }
+    const events = getLocalEvents();
+    if (events[eventId]?.tasks?.[taskId]) {
+      events[eventId].tasks[taskId] = {
+        ...events[eventId].tasks[taskId],
+        ...safeUpdates,
+      };
+      events[eventId].updatedAt = now;
+      saveLocalEvents(events);
+    }
+
+    if (!isFirebaseConfigured || !database || eventId.startsWith('demo_')) {
       return;
     }
 
-    await update(ref(database, `events/${eventId}/tasks/${taskId}`), safeUpdates);
-    await update(ref(database, `events/${eventId}`), { updatedAt: now });
+    try {
+      await update(ref(database, `events/${eventId}/tasks/${taskId}`), safeUpdates);
+      await update(ref(database, `events/${eventId}`), { updatedAt: now });
+    } catch (err) {
+      console.warn(`[TaskService] Firebase updateTask failed for ${eventId}:`, err);
+    }
   },
 
   async toggleTaskStatus(
@@ -96,18 +106,23 @@ export const TaskService = {
   },
 
   async deleteTask(eventId: string, taskId: string): Promise<void> {
-    if (!isFirebaseConfigured || !database) {
-      const events = getLocalEvents();
-      if (events[eventId]?.tasks?.[taskId]) {
-        delete events[eventId].tasks[taskId];
-        events[eventId].updatedAt = Date.now();
-        saveLocalEvents(events);
-      }
+    const events = getLocalEvents();
+    if (events[eventId]?.tasks?.[taskId]) {
+      delete events[eventId].tasks[taskId];
+      events[eventId].updatedAt = Date.now();
+      saveLocalEvents(events);
+    }
+
+    if (!isFirebaseConfigured || !database || eventId.startsWith('demo_')) {
       return;
     }
 
-    await remove(ref(database, `events/${eventId}/tasks/${taskId}`));
-    await update(ref(database, `events/${eventId}`), { updatedAt: Date.now() });
+    try {
+      await remove(ref(database, `events/${eventId}/tasks/${taskId}`));
+      await update(ref(database, `events/${eventId}`), { updatedAt: Date.now() });
+    } catch (err) {
+      console.warn(`[TaskService] Firebase deleteTask failed for ${eventId}:`, err);
+    }
   },
 
   async batchAddTasks(
@@ -140,20 +155,23 @@ export const TaskService = {
       };
     });
 
-    if (!isFirebaseConfigured || !database) {
-      const events = getLocalEvents();
-      if (events[eventId]) {
-        if (!events[eventId].tasks) events[eventId].tasks = {};
-        Object.assign(events[eventId].tasks, tasksMap);
-        events[eventId].updatedAt = now;
-        saveLocalEvents(events);
-      }
+    const events = getLocalEvents();
+    if (events[eventId]) {
+      if (!events[eventId].tasks) events[eventId].tasks = {};
+      Object.assign(events[eventId].tasks, tasksMap);
+      events[eventId].updatedAt = now;
+      saveLocalEvents(events);
+    }
+
+    if (!isFirebaseConfigured || !database || eventId.startsWith('demo_')) {
       return;
     }
 
-    // Multi-location or batch set
-    await update(ref(database, `events/${eventId}/tasks`), tasksMap);
-    await update(ref(database, `events/${eventId}`), { updatedAt: now });
+    try {
+      await update(ref(database, `events/${eventId}/tasks`), tasksMap);
+      await update(ref(database, `events/${eventId}`), { updatedAt: now });
+    } catch (err) {
+      console.warn(`[TaskService] Firebase batchAddTasks failed for ${eventId}:`, err);
+    }
   },
 };
-

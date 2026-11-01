@@ -14,19 +14,25 @@ import { database, isFirebaseConfigured } from '../firebase/config';
 import { EventItem, EventFunction, ActivityItem } from '../../types/event';
 import { EventFormData } from '../../schemas/event.schema';
 import { DEFAULT_BUDGET_CATEGORIES } from '../../constants/categories';
-
-const LOCAL_EVENTS_KEY = 'eventwise_demo_events';
+import {
+  LOCAL_EVENTS_KEY,
+  LOCAL_EVENTS_CHANGED_EVENT,
+  getLocalDemoEvents,
+  notifyLocalEventsChanged,
+  seedLocalDemoData,
+} from '../../constants/dummyData';
 
 function getLocalEvents(): Record<string, EventItem> {
-  try {
-    return JSON.parse(localStorage.getItem(LOCAL_EVENTS_KEY) || '{}');
-  } catch {
-    return {};
-  }
+  return getLocalDemoEvents();
 }
 
 function saveLocalEvents(events: Record<string, EventItem>) {
-  localStorage.setItem(LOCAL_EVENTS_KEY, JSON.stringify(events));
+  try {
+    localStorage.setItem(LOCAL_EVENTS_KEY, JSON.stringify(events));
+  } catch (err) {
+    console.warn('[EventService] Could not write to localStorage:', err);
+  }
+  notifyLocalEventsChanged();
 }
 
 export const EventService = {
@@ -100,40 +106,56 @@ export const EventService = {
       });
     }
 
-    if (!isFirebaseConfigured || !database) {
+    if (!isFirebaseConfigured || !database || ownerId.startsWith('demo_')) {
       const events = getLocalEvents();
       events[eventId] = newEvent;
       saveLocalEvents(events);
       return eventId;
     }
 
-    // Persist in Realtime Database under events/{eventId}
-    await set(ref(database, `events/${eventId}`), newEvent);
-    // Maintain index for user events under userEvents/{ownerId}/{eventId}
-    await set(ref(database, `userEvents/${ownerId}/${eventId}`), {
-      id: eventId,
-      name: newEvent.name,
-      category: newEvent.category,
-      eventDate: newEvent.eventDate,
-      updatedAt: now,
-    });
+    try {
+      // Persist in Realtime Database under events/{eventId}
+      await set(ref(database, `events/${eventId}`), newEvent);
+      // Maintain index for user events under userEvents/{ownerId}/{eventId}
+      await set(ref(database, `userEvents/${ownerId}/${eventId}`), {
+        id: eventId,
+        name: newEvent.name,
+        category: newEvent.category,
+        eventDate: newEvent.eventDate,
+        updatedAt: now,
+      });
+    } catch (err) {
+      console.warn('[EventService] Firebase write failed, saving to local storage fallback:', err);
+    }
+
+    // Always mirror to local storage
+    const events = getLocalEvents();
+    events[eventId] = newEvent;
+    saveLocalEvents(events);
 
     return eventId;
   },
 
   async getEvent(eventId: string): Promise<EventItem | null> {
-    if (!isFirebaseConfigured || !database) {
+    if (!isFirebaseConfigured || !database || eventId.startsWith('demo_')) {
       const events = getLocalEvents();
       return events[eventId] || null;
     }
 
-    const snap = await get(ref(database, `events/${eventId}`));
-    if (!snap.exists()) return null;
-    return snap.val() as EventItem;
+    try {
+      const snap = await get(ref(database, `events/${eventId}`));
+      if (snap.exists()) {
+        return snap.val() as EventItem;
+      }
+    } catch (err) {
+      console.warn(`[EventService] Error fetching event ${eventId} from Firebase:`, err);
+    }
+    const events = getLocalEvents();
+    return events[eventId] || null;
   },
 
   subscribeToEvent(eventId: string, callback: (event: EventItem | null) => void): () => void {
-    if (!isFirebaseConfigured || !database) {
+    if (!isFirebaseConfigured || !database || eventId.startsWith('demo_')) {
       const events = getLocalEvents();
       callback(events[eventId] || null);
 
@@ -142,33 +164,57 @@ export const EventService = {
         callback(updated[eventId] || null);
       };
       window.addEventListener('storage', handler);
-      return () => window.removeEventListener('storage', handler);
+      window.addEventListener(LOCAL_EVENTS_CHANGED_EVENT, handler);
+      return () => {
+        window.removeEventListener('storage', handler);
+        window.removeEventListener(LOCAL_EVENTS_CHANGED_EVENT, handler);
+      };
     }
 
     const eventRef = ref(database, `events/${eventId}`);
-    return onValue(eventRef, (snapshot) => {
-      if (snapshot.exists()) {
-        callback(snapshot.val() as EventItem);
-      } else {
-        callback(null);
+    return onValue(
+      eventRef,
+      (snapshot) => {
+        if (snapshot.exists()) {
+          callback(snapshot.val() as EventItem);
+        } else {
+          const localEvents = getLocalEvents();
+          callback(localEvents[eventId] || null);
+        }
+      },
+      (err) => {
+        console.warn(`[EventService] Firebase subscription error for event ${eventId}, falling back to local:`, err);
+        const localEvents = getLocalEvents();
+        callback(localEvents[eventId] || null);
       }
-    });
+    );
   },
 
   async getUserEvents(ownerId: string): Promise<EventItem[]> {
-    if (!isFirebaseConfigured || !database) {
-      const events = getLocalEvents();
-      return Object.values(events).filter((e) => e.ownerId === ownerId);
+    if (!isFirebaseConfigured || !database || ownerId.startsWith('demo_')) {
+      let events = getLocalEvents();
+      let userEvents = Object.values(events).filter((e) => e.ownerId === ownerId);
+      if (userEvents.length === 0 && ownerId.startsWith('demo_')) {
+        events = seedLocalDemoData(ownerId);
+        userEvents = Object.values(events).filter((e) => e.ownerId === ownerId);
+      }
+      return userEvents;
     }
 
     const db = database;
     try {
       const snap = await get(ref(db, `userEvents/${ownerId}`));
-      if (!snap.exists()) return [];
+      if (!snap.exists()) {
+        const localList = Object.values(getLocalEvents()).filter((e) => e.ownerId === ownerId);
+        return localList;
+      }
 
       const userEventsMap = snap.val() || {};
       const eventIds = Object.keys(userEventsMap);
-      if (eventIds.length === 0) return [];
+      if (eventIds.length === 0) {
+        const localList = Object.values(getLocalEvents()).filter((e) => e.ownerId === ownerId);
+        return localList;
+      }
 
       const eventPromises = eventIds.map(async (id) => {
         try {
@@ -181,24 +227,37 @@ export const EventService = {
       });
 
       const fullEvents = await Promise.all(eventPromises);
-      return fullEvents.filter((e): e is EventItem => Boolean(e));
+      const filtered = fullEvents.filter((e): e is EventItem => Boolean(e));
+      if (filtered.length === 0) {
+        return Object.values(getLocalEvents()).filter((e) => e.ownerId === ownerId);
+      }
+      return filtered;
     } catch (error) {
       console.error('[EventService] Error fetching user events:', error);
-      return [];
+      return Object.values(getLocalEvents()).filter((e) => e.ownerId === ownerId);
     }
   },
 
   subscribeToUserEvents(ownerId: string, callback: (events: EventItem[]) => void): () => void {
-    if (!isFirebaseConfigured || !database) {
-      const events = getLocalEvents();
-      callback(Object.values(events).filter((e) => e.ownerId === ownerId));
+    if (!isFirebaseConfigured || !database || ownerId.startsWith('demo_')) {
+      let events = getLocalEvents();
+      let userList = Object.values(events).filter((e) => e.ownerId === ownerId);
+      if (userList.length === 0 && ownerId.startsWith('demo_')) {
+        events = seedLocalDemoData(ownerId);
+        userList = Object.values(events).filter((e) => e.ownerId === ownerId);
+      }
+      callback(userList);
 
       const handler = () => {
         const updated = getLocalEvents();
         callback(Object.values(updated).filter((e) => e.ownerId === ownerId));
       };
       window.addEventListener('storage', handler);
-      return () => window.removeEventListener('storage', handler);
+      window.addEventListener(LOCAL_EVENTS_CHANGED_EVENT, handler);
+      return () => {
+        window.removeEventListener('storage', handler);
+        window.removeEventListener(LOCAL_EVENTS_CHANGED_EVENT, handler);
+      };
     }
 
     const db = database;
@@ -213,7 +272,12 @@ export const EventService = {
 
     const notify = () => {
       const list = Object.values(eventMap).filter(Boolean);
-      callback(list);
+      if (list.length > 0) {
+        callback(list);
+      } else {
+        const localList = Object.values(getLocalEvents()).filter((e) => e.ownerId === ownerId);
+        callback(localList);
+      }
     };
 
     const unsubscribeUserEvents = onValue(
@@ -222,7 +286,8 @@ export const EventService = {
         if (!snapshot.exists()) {
           cleanIndividualSubscriptions();
           Object.keys(eventMap).forEach((k) => delete eventMap[k]);
-          callback([]);
+          const localList = Object.values(getLocalEvents()).filter((e) => e.ownerId === ownerId);
+          callback(localList);
           return;
         }
 
@@ -232,7 +297,8 @@ export const EventService = {
         if (eventIds.length === 0) {
           cleanIndividualSubscriptions();
           Object.keys(eventMap).forEach((k) => delete eventMap[k]);
-          callback([]);
+          const localList = Object.values(getLocalEvents()).filter((e) => e.ownerId === ownerId);
+          callback(localList);
           return;
         }
 
@@ -266,8 +332,9 @@ export const EventService = {
         });
       },
       (error) => {
-        console.error('[EventService] Failed to listen to user events:', error);
-        callback([]);
+        console.warn('[EventService] Failed to listen to user events, checking local storage:', error);
+        const localList = Object.values(getLocalEvents()).filter((e) => e.ownerId === ownerId);
+        callback(localList);
       }
     );
 
@@ -283,59 +350,81 @@ export const EventService = {
       updatedAt: Date.now(),
     };
 
-    if (!isFirebaseConfigured || !database) {
-      const events = getLocalEvents();
-      if (events[eventId]) {
-        events[eventId] = { ...events[eventId], ...safeUpdates };
-        saveLocalEvents(events);
-      }
+    const events = getLocalEvents();
+    if (events[eventId]) {
+      events[eventId] = { ...events[eventId], ...safeUpdates };
+      saveLocalEvents(events);
+    }
+
+    if (!isFirebaseConfigured || !database || eventId.startsWith('demo_')) {
       return;
     }
 
-    await update(ref(database, `events/${eventId}`), safeUpdates);
+    try {
+      await update(ref(database, `events/${eventId}`), safeUpdates);
+    } catch (err) {
+      console.warn(`[EventService] Firebase updateEvent failed for ${eventId}:`, err);
+    }
   },
 
   async deleteEvent(eventId: string, ownerId: string): Promise<void> {
-    if (!isFirebaseConfigured || !database) {
-      const events = getLocalEvents();
+    const events = getLocalEvents();
+    if (events[eventId]) {
       delete events[eventId];
       saveLocalEvents(events);
+    }
+
+    if (!isFirebaseConfigured || !database || eventId.startsWith('demo_')) {
       return;
     }
 
-    await remove(ref(database, `events/${eventId}`));
-    await remove(ref(database, `userEvents/${ownerId}/${eventId}`));
+    try {
+      await remove(ref(database, `events/${eventId}`));
+      await remove(ref(database, `userEvents/${ownerId}/${eventId}`));
+    } catch (err) {
+      console.warn(`[EventService] Firebase deleteEvent failed for ${eventId}:`, err);
+    }
   },
 
   async addEventFunction(eventId: string, fn: Omit<EventFunction, 'id'>): Promise<string> {
     const fnId = `fn_${Date.now()}`;
     const newFn: EventFunction = { ...fn, id: fnId };
 
-    if (!isFirebaseConfigured || !database) {
-      const events = getLocalEvents();
-      if (events[eventId]) {
-        if (!events[eventId].functions) events[eventId].functions = {};
-        events[eventId].functions![fnId] = newFn;
-        saveLocalEvents(events);
-      }
+    const events = getLocalEvents();
+    if (events[eventId]) {
+      if (!events[eventId].functions) events[eventId].functions = {};
+      events[eventId].functions![fnId] = newFn;
+      saveLocalEvents(events);
+    }
+
+    if (!isFirebaseConfigured || !database || eventId.startsWith('demo_')) {
       return fnId;
     }
 
-    await set(ref(database, `events/${eventId}/functions/${fnId}`), newFn);
+    try {
+      await set(ref(database, `events/${eventId}/functions/${fnId}`), newFn);
+    } catch (err) {
+      console.warn(`[EventService] Firebase addEventFunction failed for ${eventId}:`, err);
+    }
     return fnId;
   },
 
   async deleteEventFunction(eventId: string, functionId: string): Promise<void> {
-    if (!isFirebaseConfigured || !database) {
-      const events = getLocalEvents();
-      if (events[eventId]?.functions) {
-        delete events[eventId].functions![functionId];
-        saveLocalEvents(events);
-      }
+    const events = getLocalEvents();
+    if (events[eventId]?.functions) {
+      delete events[eventId].functions![functionId];
+      saveLocalEvents(events);
+    }
+
+    if (!isFirebaseConfigured || !database || eventId.startsWith('demo_')) {
       return;
     }
 
-    await remove(ref(database, `events/${eventId}/functions/${functionId}`));
+    try {
+      await remove(ref(database, `events/${eventId}/functions/${functionId}`));
+    } catch (err) {
+      console.warn(`[EventService] Firebase deleteEventFunction failed:`, err);
+    }
   },
 
   async logActivity(
@@ -349,17 +438,22 @@ export const EventService = {
       timestamp: Date.now(),
     };
 
-    if (!isFirebaseConfigured || !database) {
-      const events = getLocalEvents();
-      if (events[eventId]) {
-        if (!events[eventId].activity) events[eventId].activity = {};
-        events[eventId].activity![actId] = item;
-        saveLocalEvents(events);
-      }
+    const events = getLocalEvents();
+    if (events[eventId]) {
+      if (!events[eventId].activity) events[eventId].activity = {};
+      events[eventId].activity![actId] = item;
+      saveLocalEvents(events);
+    }
+
+    if (!isFirebaseConfigured || !database || eventId.startsWith('demo_')) {
       return;
     }
 
-    await set(ref(database, `events/${eventId}/activity/${actId}`), item);
+    try {
+      await set(ref(database, `events/${eventId}/activity/${actId}`), item);
+    } catch (err) {
+      console.warn(`[EventService] Firebase logActivity failed for ${eventId}:`, err);
+    }
   },
 };
 

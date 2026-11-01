@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Plus, Search, Filter } from 'lucide-react';
+import { Plus, Search, Filter, Database } from 'lucide-react';
+import { useAuth } from '../hooks/useAuth';
 import { useEvents } from '../hooks/useEvents';
 import { EventCard } from '../components/events/EventCard';
 import { Button } from '../components/common/Button';
@@ -7,12 +8,18 @@ import { EmptyState } from '../components/common/EmptyState';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { CreateEventModal } from '../components/events/CreateEventModal';
 import { EVENT_CATEGORIES } from '../constants/categories';
+import { seedLocalDemoData } from '../constants/dummyData';
 
 export const EventsPage: React.FC = () => {
+  const { user } = useAuth();
   const { events, loading } = useEvents();
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [showCreateModal, setShowCreateModal] = useState(false);
+
+  const handleLoadDemo = () => {
+    seedLocalDemoData(user?.uid || 'demo_google_user', true);
+  };
 
   const filteredEvents = events.filter((e) => {
     const matchesSearch =
@@ -32,14 +39,24 @@ export const EventsPage: React.FC = () => {
           </p>
         </div>
 
-        <Button
-          onClick={() => setShowCreateModal(true)}
-          variant="primary"
-          icon={Plus}
-          className="shrink-0"
-        >
-          Create Event
-        </Button>
+        <div className="flex items-center gap-2 shrink-0">
+          {events.length === 0 && (
+            <Button
+              onClick={handleLoadDemo}
+              variant="outline"
+              icon={Database}
+            >
+              Load Demo Celebrations
+            </Button>
+          )}
+          <Button
+            onClick={() => setShowCreateModal(true)}
+            variant="primary"
+            icon={Plus}
+          >
+            Create Event
+          </Button>
+        </div>
       </div>
 
       {/* Filter & Search Toolbar */}
@@ -73,12 +90,24 @@ export const EventsPage: React.FC = () => {
 
       {loading ? (
         <LoadingSpinner message="Loading your events..." />
+      ) : events.length === 0 ? (
+        <EmptyState
+          title="No events in planning yet"
+          description="Create your first celebration or load pre-populated demo celebrations with ready-to-explore budgets, vendor catalogs, and guest lists."
+          actionLabel="Create Event"
+          onAction={() => setShowCreateModal(true)}
+          secondaryActionLabel="Load Demo Celebrations"
+          onSecondaryAction={handleLoadDemo}
+        />
       ) : filteredEvents.length === 0 ? (
         <EmptyState
           title="No events match your search"
           description="Try clearing your search filters or create a new event workspace."
-          actionLabel="Create Event"
-          onAction={() => setShowCreateModal(true)}
+          actionLabel="Clear Filters"
+          onAction={() => {
+            setSearch('');
+            setCategoryFilter('all');
+          }}
         />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

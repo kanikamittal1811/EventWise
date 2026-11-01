@@ -2,19 +2,19 @@ import { ref, set, update, remove } from 'firebase/database';
 import { database, isFirebaseConfigured } from '../firebase/config';
 import { Guest } from '../../types/guest';
 import { GuestFormData } from '../../schemas/guest.schema';
-
-const LOCAL_EVENTS_KEY = 'eventwise_demo_events';
+import { LOCAL_EVENTS_KEY, notifyLocalEventsChanged, getLocalDemoEvents } from '../../constants/dummyData';
 
 function getLocalEvents(): any {
-  try {
-    return JSON.parse(localStorage.getItem(LOCAL_EVENTS_KEY) || '{}');
-  } catch {
-    return {};
-  }
+  return getLocalDemoEvents();
 }
 
 function saveLocalEvents(events: any) {
-  localStorage.setItem(LOCAL_EVENTS_KEY, JSON.stringify(events));
+  try {
+    localStorage.setItem(LOCAL_EVENTS_KEY, JSON.stringify(events));
+  } catch (err) {
+    console.warn('[GuestService] Failed to write localStorage:', err);
+  }
+  notifyLocalEventsChanged();
 }
 
 export const GuestService = {
@@ -39,19 +39,24 @@ export const GuestService = {
       updatedAt: now,
     };
 
-    if (!isFirebaseConfigured || !database) {
-      const events = getLocalEvents();
-      if (events[eventId]) {
-        if (!events[eventId].guests) events[eventId].guests = {};
-        events[eventId].guests[guestId] = guest;
-        events[eventId].updatedAt = now;
-        saveLocalEvents(events);
-      }
+    const events = getLocalEvents();
+    if (events[eventId]) {
+      if (!events[eventId].guests) events[eventId].guests = {};
+      events[eventId].guests[guestId] = guest;
+      events[eventId].updatedAt = now;
+      saveLocalEvents(events);
+    }
+
+    if (!isFirebaseConfigured || !database || eventId.startsWith('demo_')) {
       return guestId;
     }
 
-    await set(ref(database, `events/${eventId}/guests/${guestId}`), guest);
-    await update(ref(database, `events/${eventId}`), { updatedAt: now });
+    try {
+      await set(ref(database, `events/${eventId}/guests/${guestId}`), guest);
+      await update(ref(database, `events/${eventId}`), { updatedAt: now });
+    } catch (err) {
+      console.warn(`[GuestService] Firebase addGuest failed for ${eventId}:`, err);
+    }
     return guestId;
   },
 
@@ -62,21 +67,26 @@ export const GuestService = {
       updatedAt: now,
     };
 
-    if (!isFirebaseConfigured || !database) {
-      const events = getLocalEvents();
-      if (events[eventId]?.guests?.[guestId]) {
-        events[eventId].guests[guestId] = {
-          ...events[eventId].guests[guestId],
-          ...safeUpdates,
-        };
-        events[eventId].updatedAt = now;
-        saveLocalEvents(events);
-      }
+    const events = getLocalEvents();
+    if (events[eventId]?.guests?.[guestId]) {
+      events[eventId].guests[guestId] = {
+        ...events[eventId].guests[guestId],
+        ...safeUpdates,
+      };
+      events[eventId].updatedAt = now;
+      saveLocalEvents(events);
+    }
+
+    if (!isFirebaseConfigured || !database || eventId.startsWith('demo_')) {
       return;
     }
 
-    await update(ref(database, `events/${eventId}/guests/${guestId}`), safeUpdates);
-    await update(ref(database, `events/${eventId}`), { updatedAt: now });
+    try {
+      await update(ref(database, `events/${eventId}/guests/${guestId}`), safeUpdates);
+      await update(ref(database, `events/${eventId}`), { updatedAt: now });
+    } catch (err) {
+      console.warn(`[GuestService] Firebase updateGuest failed for ${eventId}:`, err);
+    }
   },
 
   async toggleInvitationSent(eventId: string, guestId: string, sent: boolean): Promise<void> {
@@ -87,18 +97,22 @@ export const GuestService = {
   },
 
   async deleteGuest(eventId: string, guestId: string): Promise<void> {
-    if (!isFirebaseConfigured || !database) {
-      const events = getLocalEvents();
-      if (events[eventId]?.guests?.[guestId]) {
-        delete events[eventId].guests[guestId];
-        events[eventId].updatedAt = Date.now();
-        saveLocalEvents(events);
-      }
+    const events = getLocalEvents();
+    if (events[eventId]?.guests?.[guestId]) {
+      delete events[eventId].guests[guestId];
+      events[eventId].updatedAt = Date.now();
+      saveLocalEvents(events);
+    }
+
+    if (!isFirebaseConfigured || !database || eventId.startsWith('demo_')) {
       return;
     }
 
-    await remove(ref(database, `events/${eventId}/guests/${guestId}`));
-    await update(ref(database, `events/${eventId}`), { updatedAt: Date.now() });
+    try {
+      await remove(ref(database, `events/${eventId}/guests/${guestId}`));
+      await update(ref(database, `events/${eventId}`), { updatedAt: Date.now() });
+    } catch (err) {
+      console.warn(`[GuestService] Firebase deleteGuest failed for ${eventId}:`, err);
+    }
   },
 };
-

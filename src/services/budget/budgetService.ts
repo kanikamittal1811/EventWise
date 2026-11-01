@@ -3,42 +3,47 @@ import { database, isFirebaseConfigured } from '../firebase/config';
 import { BudgetCategory, Expense } from '../../types/budget';
 import { BudgetCategoryFormData, ExpenseFormData } from '../../schemas/budget.schema';
 import { roundCurrency } from '../../utils/calculations';
-
-const LOCAL_EVENTS_KEY = 'eventwise_demo_events';
+import { LOCAL_EVENTS_KEY, notifyLocalEventsChanged, getLocalDemoEvents } from '../../constants/dummyData';
 
 function getLocalEvents(): any {
-  try {
-    return JSON.parse(localStorage.getItem(LOCAL_EVENTS_KEY) || '{}');
-  } catch {
-    return {};
-  }
+  return getLocalDemoEvents();
 }
 
 function saveLocalEvents(events: any) {
-  localStorage.setItem(LOCAL_EVENTS_KEY, JSON.stringify(events));
+  try {
+    localStorage.setItem(LOCAL_EVENTS_KEY, JSON.stringify(events));
+  } catch (err) {
+    console.warn('[BudgetService] Failed to write localStorage:', err);
+  }
+  notifyLocalEventsChanged();
 }
 
 export const BudgetService = {
   async setTotalBudget(eventId: string, total: number): Promise<void> {
     const safeTotal = roundCurrency(Math.max(0, total));
 
-    if (!isFirebaseConfigured || !database) {
-      const events = getLocalEvents();
-      if (events[eventId]) {
-        events[eventId].totalBudget = safeTotal;
-        if (!events[eventId].budget) events[eventId].budget = { total: safeTotal };
-        events[eventId].budget.total = safeTotal;
-        events[eventId].updatedAt = Date.now();
-        saveLocalEvents(events);
-      }
+    const events = getLocalEvents();
+    if (events[eventId]) {
+      events[eventId].totalBudget = safeTotal;
+      if (!events[eventId].budget) events[eventId].budget = { total: safeTotal };
+      events[eventId].budget.total = safeTotal;
+      events[eventId].updatedAt = Date.now();
+      saveLocalEvents(events);
+    }
+
+    if (!isFirebaseConfigured || !database || eventId.startsWith('demo_')) {
       return;
     }
 
-    await update(ref(database, `events/${eventId}`), {
-      totalBudget: safeTotal,
-      'budget/total': safeTotal,
-      updatedAt: Date.now(),
-    });
+    try {
+      await update(ref(database, `events/${eventId}`), {
+        totalBudget: safeTotal,
+        'budget/total': safeTotal,
+        updatedAt: Date.now(),
+      });
+    } catch (err) {
+      console.warn(`[BudgetService] Firebase setTotalBudget failed for ${eventId}:`, err);
+    }
   },
 
   async addCategory(eventId: string, data: BudgetCategoryFormData): Promise<string> {
@@ -51,20 +56,25 @@ export const BudgetService = {
       notes: data.notes || '',
     };
 
-    if (!isFirebaseConfigured || !database) {
-      const events = getLocalEvents();
-      if (events[eventId]) {
-        if (!events[eventId].budget) events[eventId].budget = { total: events[eventId].totalBudget || 0 };
-        if (!events[eventId].budget.categories) events[eventId].budget.categories = {};
-        events[eventId].budget.categories[catId] = category;
-        events[eventId].updatedAt = Date.now();
-        saveLocalEvents(events);
-      }
+    const events = getLocalEvents();
+    if (events[eventId]) {
+      if (!events[eventId].budget) events[eventId].budget = { total: events[eventId].totalBudget || 0 };
+      if (!events[eventId].budget.categories) events[eventId].budget.categories = {};
+      events[eventId].budget.categories[catId] = category;
+      events[eventId].updatedAt = Date.now();
+      saveLocalEvents(events);
+    }
+
+    if (!isFirebaseConfigured || !database || eventId.startsWith('demo_')) {
       return catId;
     }
 
-    await set(ref(database, `events/${eventId}/budget/categories/${catId}`), category);
-    await update(ref(database, `events/${eventId}`), { updatedAt: Date.now() });
+    try {
+      await set(ref(database, `events/${eventId}/budget/categories/${catId}`), category);
+      await update(ref(database, `events/${eventId}`), { updatedAt: Date.now() });
+    } catch (err) {
+      console.warn(`[BudgetService] Firebase addCategory failed for ${eventId}:`, err);
+    }
     return catId;
   },
 
@@ -78,36 +88,46 @@ export const BudgetService = {
       safeUpdates.allocatedAmount = roundCurrency(safeUpdates.allocatedAmount);
     }
 
-    if (!isFirebaseConfigured || !database) {
-      const events = getLocalEvents();
-      if (events[eventId]?.budget?.categories?.[categoryId]) {
-        events[eventId].budget.categories[categoryId] = {
-          ...events[eventId].budget.categories[categoryId],
-          ...safeUpdates,
-        };
-        events[eventId].updatedAt = Date.now();
-        saveLocalEvents(events);
-      }
+    const events = getLocalEvents();
+    if (events[eventId]?.budget?.categories?.[categoryId]) {
+      events[eventId].budget.categories[categoryId] = {
+        ...events[eventId].budget.categories[categoryId],
+        ...safeUpdates,
+      };
+      events[eventId].updatedAt = Date.now();
+      saveLocalEvents(events);
+    }
+
+    if (!isFirebaseConfigured || !database || eventId.startsWith('demo_')) {
       return;
     }
 
-    await update(ref(database, `events/${eventId}/budget/categories/${categoryId}`), safeUpdates);
-    await update(ref(database, `events/${eventId}`), { updatedAt: Date.now() });
+    try {
+      await update(ref(database, `events/${eventId}/budget/categories/${categoryId}`), safeUpdates);
+      await update(ref(database, `events/${eventId}`), { updatedAt: Date.now() });
+    } catch (err) {
+      console.warn(`[BudgetService] Firebase updateCategory failed:`, err);
+    }
   },
 
   async deleteCategory(eventId: string, categoryId: string): Promise<void> {
-    if (!isFirebaseConfigured || !database) {
-      const events = getLocalEvents();
-      if (events[eventId]?.budget?.categories?.[categoryId]) {
-        delete events[eventId].budget.categories[categoryId];
-        events[eventId].updatedAt = Date.now();
-        saveLocalEvents(events);
-      }
+    const events = getLocalEvents();
+    if (events[eventId]?.budget?.categories?.[categoryId]) {
+      delete events[eventId].budget.categories[categoryId];
+      events[eventId].updatedAt = Date.now();
+      saveLocalEvents(events);
+    }
+
+    if (!isFirebaseConfigured || !database || eventId.startsWith('demo_')) {
       return;
     }
 
-    await remove(ref(database, `events/${eventId}/budget/categories/${categoryId}`));
-    await update(ref(database, `events/${eventId}`), { updatedAt: Date.now() });
+    try {
+      await remove(ref(database, `events/${eventId}/budget/categories/${categoryId}`));
+      await update(ref(database, `events/${eventId}`), { updatedAt: Date.now() });
+    } catch (err) {
+      console.warn(`[BudgetService] Firebase deleteCategory failed:`, err);
+    }
   },
 
   async addExpense(eventId: string, data: ExpenseFormData): Promise<string> {
@@ -129,20 +149,25 @@ export const BudgetService = {
       createdAt: Date.now(),
     };
 
-    if (!isFirebaseConfigured || !database) {
-      const events = getLocalEvents();
-      if (events[eventId]) {
-        if (!events[eventId].budget) events[eventId].budget = { total: events[eventId].totalBudget || 0 };
-        if (!events[eventId].budget.expenses) events[eventId].budget.expenses = {};
-        events[eventId].budget.expenses[expId] = expense;
-        events[eventId].updatedAt = Date.now();
-        saveLocalEvents(events);
-      }
+    const events = getLocalEvents();
+    if (events[eventId]) {
+      if (!events[eventId].budget) events[eventId].budget = { total: events[eventId].totalBudget || 0 };
+      if (!events[eventId].budget.expenses) events[eventId].budget.expenses = {};
+      events[eventId].budget.expenses[expId] = expense;
+      events[eventId].updatedAt = Date.now();
+      saveLocalEvents(events);
+    }
+
+    if (!isFirebaseConfigured || !database || eventId.startsWith('demo_')) {
       return expId;
     }
 
-    await set(ref(database, `events/${eventId}/budget/expenses/${expId}`), expense);
-    await update(ref(database, `events/${eventId}`), { updatedAt: Date.now() });
+    try {
+      await set(ref(database, `events/${eventId}/budget/expenses/${expId}`), expense);
+      await update(ref(database, `events/${eventId}`), { updatedAt: Date.now() });
+    } catch (err) {
+      console.warn(`[BudgetService] Firebase addExpense failed:`, err);
+    }
     return expId;
   },
 
@@ -155,36 +180,46 @@ export const BudgetService = {
     if (safeUpdates.amount !== undefined) safeUpdates.amount = roundCurrency(safeUpdates.amount);
     if (safeUpdates.paidAmount !== undefined) safeUpdates.paidAmount = roundCurrency(safeUpdates.paidAmount);
 
-    if (!isFirebaseConfigured || !database) {
-      const events = getLocalEvents();
-      if (events[eventId]?.budget?.expenses?.[expenseId]) {
-        events[eventId].budget.expenses[expenseId] = {
-          ...events[eventId].budget.expenses[expenseId],
-          ...safeUpdates,
-        };
-        events[eventId].updatedAt = Date.now();
-        saveLocalEvents(events);
-      }
+    const events = getLocalEvents();
+    if (events[eventId]?.budget?.expenses?.[expenseId]) {
+      events[eventId].budget.expenses[expenseId] = {
+        ...events[eventId].budget.expenses[expenseId],
+        ...safeUpdates,
+      };
+      events[eventId].updatedAt = Date.now();
+      saveLocalEvents(events);
+    }
+
+    if (!isFirebaseConfigured || !database || eventId.startsWith('demo_')) {
       return;
     }
 
-    await update(ref(database, `events/${eventId}/budget/expenses/${expenseId}`), safeUpdates);
-    await update(ref(database, `events/${eventId}`), { updatedAt: Date.now() });
+    try {
+      await update(ref(database, `events/${eventId}/budget/expenses/${expenseId}`), safeUpdates);
+      await update(ref(database, `events/${eventId}`), { updatedAt: Date.now() });
+    } catch (err) {
+      console.warn(`[BudgetService] Firebase updateExpense failed:`, err);
+    }
   },
 
   async deleteExpense(eventId: string, expenseId: string): Promise<void> {
-    if (!isFirebaseConfigured || !database) {
-      const events = getLocalEvents();
-      if (events[eventId]?.budget?.expenses?.[expenseId]) {
-        delete events[eventId].budget.expenses[expenseId];
-        events[eventId].updatedAt = Date.now();
-        saveLocalEvents(events);
-      }
+    const events = getLocalEvents();
+    if (events[eventId]?.budget?.expenses?.[expenseId]) {
+      delete events[eventId].budget.expenses[expenseId];
+      events[eventId].updatedAt = Date.now();
+      saveLocalEvents(events);
+    }
+
+    if (!isFirebaseConfigured || !database || eventId.startsWith('demo_')) {
       return;
     }
 
-    await remove(ref(database, `events/${eventId}/budget/expenses/${expenseId}`));
-    await update(ref(database, `events/${eventId}`), { updatedAt: Date.now() });
+    try {
+      await remove(ref(database, `events/${eventId}/budget/expenses/${expenseId}`));
+      await update(ref(database, `events/${eventId}`), { updatedAt: Date.now() });
+    } catch (err) {
+      console.warn(`[BudgetService] Firebase deleteExpense failed:`, err);
+    }
   },
 
   async applyAiBudgetPlan(
@@ -203,19 +238,24 @@ export const BudgetService = {
       };
     });
 
-    if (!isFirebaseConfigured || !database) {
-      const events = getLocalEvents();
-      if (events[eventId]) {
-        if (!events[eventId].budget) events[eventId].budget = { total: events[eventId].totalBudget };
-        events[eventId].budget.categories = categoriesMap;
-        events[eventId].updatedAt = Date.now();
-        saveLocalEvents(events);
-      }
+    const events = getLocalEvents();
+    if (events[eventId]) {
+      if (!events[eventId].budget) events[eventId].budget = { total: events[eventId].totalBudget };
+      events[eventId].budget.categories = categoriesMap;
+      events[eventId].updatedAt = Date.now();
+      saveLocalEvents(events);
+    }
+
+    if (!isFirebaseConfigured || !database || eventId.startsWith('demo_')) {
       return;
     }
 
-    await set(ref(database, `events/${eventId}/budget/categories`), categoriesMap);
-    await update(ref(database, `events/${eventId}`), { updatedAt: Date.now() });
+    try {
+      await set(ref(database, `events/${eventId}/budget/categories`), categoriesMap);
+      await update(ref(database, `events/${eventId}`), { updatedAt: Date.now() });
+    } catch (err) {
+      console.warn(`[BudgetService] Firebase applyAiBudgetPlan failed:`, err);
+    }
   },
 };
 

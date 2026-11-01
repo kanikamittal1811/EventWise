@@ -8,6 +8,8 @@ interface EmptyStateProps {
   description: string;
   actionLabel?: string;
   onAction?: () => void;
+  secondaryActionLabel?: string;
+  onSecondaryAction?: () => void;
   aiSuggestedPrompt?: string;
 }
 
@@ -17,6 +19,8 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   description,
   actionLabel,
   onAction,
+  secondaryActionLabel,
+  onSecondaryAction,
   aiSuggestedPrompt,
 }) => {
   return (
@@ -26,11 +30,18 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       </div>
       <h4 className="text-base font-semibold text-charcoal">{title}</h4>
       <p className="text-sm text-charcoal-600 max-w-sm mt-1 mb-5">{description}</p>
-      {actionLabel && onAction && (
-        <Button onClick={onAction} variant="primary" size="sm">
-          {actionLabel}
-        </Button>
-      )}
+      <div className="flex flex-wrap items-center justify-center gap-3">
+        {actionLabel && onAction && (
+          <Button onClick={onAction} variant="primary" size="sm">
+            {actionLabel}
+          </Button>
+        )}
+        {secondaryActionLabel && onSecondaryAction && (
+          <Button onClick={onSecondaryAction} variant="outline" size="sm">
+            {secondaryActionLabel}
+          </Button>
+        )}
+      </div>
       {aiSuggestedPrompt && (
         <p className="mt-4 text-xs text-charcoal-500 italic">
           Tip: You can ask AI: &quot;{aiSuggestedPrompt}&quot;

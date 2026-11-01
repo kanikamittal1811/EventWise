@@ -195,7 +195,9 @@ PORT=3001
 
 ---
 
-## 7. Available Scripts
+## 7. Available Scripts & Deployment
+
+### Local Development Scripts
 
 | Command | Action |
 |---|---|
@@ -205,6 +207,13 @@ PORT=3001
 | `npm test` | Executes unit tests via Vitest (calculations, Zod schemas, image compression) |
 | `npm run build` | Compiles TypeScript and builds production assets to `/dist` |
 | `npm run preview` | Previews the production build locally |
+
+### Vercel Deployment
+
+EventWise is configured for zero-config Vercel deployment:
+- **Frontend:** Vite SPA built to `/dist` with client-side routing support via `vercel.json`.
+- **Backend API:** Express server deployed as a Vercel Serverless Function via `api/index.ts`.
+- **Environment Variables on Vercel:** Add `GEMINI_API_KEY` (and optionally `GEMINI_MODEL`, `VITE_FIREBASE_*` keys) in **Vercel Project Settings > Environment Variables**.
 
 ---
 

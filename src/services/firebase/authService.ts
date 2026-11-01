@@ -12,6 +12,7 @@ import {
 import { ref, set, get } from 'firebase/database';
 import { auth, database, isFirebaseConfigured } from './config';
 import { UserProfile } from '../../types/user';
+import { seedLocalDemoData } from '../../constants/dummyData';
 
 const DEMO_USER_KEY = 'eventwise_demo_user';
 
@@ -91,7 +92,13 @@ export const AuthService = {
       createdAt: Date.now(),
       preferences: { defaultCurrency: 'INR' },
     };
-    localStorage.setItem(DEMO_USER_KEY, JSON.stringify(demoUser));
+    try {
+      localStorage.setItem(DEMO_USER_KEY, JSON.stringify(demoUser));
+    } catch {
+      // ignore
+    }
+    // Pre-populate dummy events into local storage so the dashboard immediately shows functional data
+    seedLocalDemoData(demoUser.uid, true);
     return demoUser;
   },
 
@@ -176,6 +183,17 @@ export const AuthService = {
           });
         }
       } else {
+        // If not authenticated via Firebase Auth, check if an active instant demo session exists in localStorage
+        const stored = typeof localStorage !== 'undefined' ? localStorage.getItem(DEMO_USER_KEY) : null;
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored);
+            callback(parsed);
+            return;
+          } catch {
+            // ignore
+          }
+        }
         callback(null);
       }
     });

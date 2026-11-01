@@ -49,3 +49,4 @@ export function filterCatalogVendors(
   filtered.sort((a, b) => b.rating - a.rating);
   return filtered;
 }
+

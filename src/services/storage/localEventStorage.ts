@@ -47,3 +47,4 @@ export function mutateLocalEvent(
   saveLocalEvents(events, caller);
   return true;
 }
+

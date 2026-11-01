@@ -110,3 +110,4 @@ describe('filterCatalogVendors Utility', () => {
     expect(luxury[0].budgetTier).toBe('luxury');
   });
 });
+

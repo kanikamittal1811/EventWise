@@ -90,3 +90,4 @@ export const AddFunctionModal: React.FC<AddFunctionModalProps> = ({
     </Modal>
   );
 };
+

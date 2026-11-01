@@ -34,31 +34,48 @@ export const AiConceptGenerator: React.FC = () => {
   };
 
   return (
-    <div className="bg-white rounded-3xl border border-charcoal-100 p-5 sm:p-6 shadow-subtle space-y-5">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
+    <div className="bg-white rounded-3xl border border-charcoal-100 p-5 sm:p-6 shadow-subtle space-y-4">
+      <div className="space-y-4">
+        <div className="flex items-start gap-3">
+          <div className="p-2.5 rounded-2xl bg-accent-50 text-accent-600 shrink-0">
             <Palette className="w-5 h-5 text-accent-500" />
-            <h4 className="text-base font-serif font-bold text-charcoal">
+          </div>
+          <div className="min-w-0">
+            <h4 className="text-base font-serif font-bold text-charcoal leading-snug">
               AI Aesthetic Concept &amp; Color Palette
             </h4>
+            <p className="text-xs text-charcoal-500 mt-0.5 leading-relaxed">
+              Generate complementary harmonies, stage designs, and styling guidelines
+            </p>
           </div>
-          <p className="text-xs text-charcoal-400 mt-0.5">
-            Generate complementary harmonies, stage designs, and styling guidelines
-          </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Input
-            placeholder="e.g. Minimalist Tuscan Sunset"
-            value={themeKeyword}
-            onChange={(e) => setThemeKeyword(e.target.value)}
-            className="w-full sm:w-64"
-          />
-          <Button onClick={handleGenerate} loading={loading} icon={Sparkles} size="sm">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleGenerate();
+          }}
+          className="flex items-center gap-2"
+        >
+          <div className="flex-1 min-w-0">
+            <Input
+              placeholder="e.g. Minimalist Tuscan Sunset"
+              value={themeKeyword}
+              onChange={(e) => setThemeKeyword(e.target.value)}
+              className="w-full"
+            />
+          </div>
+          <Button
+            type="submit"
+            onClick={handleGenerate}
+            loading={loading}
+            icon={Sparkles}
+            size="md"
+            className="shrink-0"
+          >
             Generate
           </Button>
-        </div>
+        </form>
       </div>
 
       {concepts && (
@@ -80,7 +97,7 @@ export const AiConceptGenerator: React.FC = () => {
             <h5 className="text-xs font-bold uppercase tracking-wider text-charcoal-500 mb-2">
               Color Harmony Swatches (Click HEX to copy)
             </h5>
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+            <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-2.5">
               {concepts.colorPalette?.map((color: any, i: number) => (
                 <div
                   key={i}
@@ -91,9 +108,11 @@ export const AiConceptGenerator: React.FC = () => {
                     className="w-full h-14 rounded-xl shadow-inner mb-2 border border-black/5"
                     style={{ backgroundColor: color.hex }}
                   />
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-semibold text-charcoal truncate">{color.name}</span>
-                    <span className="text-[10px] font-mono text-charcoal-500 group-hover:text-primary flex items-center gap-0.5">
+                  <div className="flex items-center justify-between text-xs gap-1">
+                    <span className="font-semibold text-charcoal truncate min-w-0" title={color.name}>
+                      {color.name}
+                    </span>
+                    <span className="text-[10px] font-mono text-charcoal-500 group-hover:text-primary flex items-center gap-0.5 shrink-0">
                       {copiedHex === color.hex ? (
                         <Check className="w-3 h-3 text-emerald-600" />
                       ) : (
@@ -108,10 +127,10 @@ export const AiConceptGenerator: React.FC = () => {
           </div>
 
           {/* Decor & Attire Highlights */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-3 pt-2">
             <div className="p-4 rounded-2xl bg-background-subtle/70 border border-charcoal-100">
               <h5 className="text-xs font-bold text-charcoal flex items-center gap-1.5 mb-2">
-                <Lightbulb className="w-3.5 h-3.5 text-amber-500" /> Decor &amp; Floral Ideas
+                <Lightbulb className="w-3.5 h-3.5 text-amber-500 shrink-0" /> Decor &amp; Floral Ideas
               </h5>
               <ul className="space-y-1.5 text-xs text-charcoal-600 list-disc list-inside">
                 {concepts.decorIdeas?.map((idea: string, i: number) => (

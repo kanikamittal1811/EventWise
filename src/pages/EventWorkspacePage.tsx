@@ -512,6 +512,27 @@ export const EventWorkspacePage: React.FC = () => {
             setSelectedVendor(vendor);
             setShowVendorModal(true);
           }}
+          onCustomizeCatalogVendor={(catalogVendor) => {
+            setSelectedVendor({
+              id: '',
+              name: catalogVendor.name,
+              category: catalogVendor.category,
+              quotation: catalogVendor.quotation,
+              negotiatedPrice: catalogVendor.negotiatedPrice,
+              bookingStatus: 'shortlisted',
+              paymentStatus: 'unpaid',
+              contactName: catalogVendor.contactName,
+              phone: catalogVendor.phone,
+              email: catalogVendor.email,
+              website: catalogVendor.website,
+              address: catalogVendor.address,
+              notes: catalogVendor.description,
+              rating: Math.round(catalogVendor.rating),
+              createdAt: Date.now(),
+              updatedAt: Date.now(),
+            });
+            setShowVendorModal(true);
+          }}
         />
       )}
 
@@ -663,7 +684,7 @@ export const EventWorkspacePage: React.FC = () => {
         onClose={() => setShowVendorModal(false)}
         initialData={selectedVendor}
         onSubmit={async (data) => {
-          if (selectedVendor) {
+          if (selectedVendor && selectedVendor.id) {
             await updateVendor(selectedVendor.id, data);
           } else {
             await addVendor(data);

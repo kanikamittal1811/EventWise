@@ -139,7 +139,7 @@ export const GuestFormModal: React.FC<{
 
           <Input
             label="Phone / WhatsApp"
-            placeholder="+91 9876543210"
+            placeholder="919876543210"
             error={errors.phone?.message}
             {...register('phone')}
           />

@@ -10,6 +10,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
+    "seed:firebase": "tsx scripts/seedFirebase.ts",
     "test": "vitest run",
     "test:jest": "vitest run"
   },

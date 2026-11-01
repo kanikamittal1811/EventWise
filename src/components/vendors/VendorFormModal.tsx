@@ -13,7 +13,7 @@ export const VendorFormModal: React.FC<{
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (data: VendorFormData) => Promise<void>;
-  initialData?: Vendor | null;
+  initialData?: Partial<Vendor> | null;
 }> = ({ isOpen, onClose, onSubmit, initialData }) => {
   const {
     register,
@@ -39,12 +39,12 @@ export const VendorFormModal: React.FC<{
   useEffect(() => {
     if (initialData) {
       reset({
-        name: initialData.name,
-        category: initialData.category,
-        quotation: initialData.quotation,
-        negotiatedPrice: initialData.negotiatedPrice,
-        bookingStatus: initialData.bookingStatus,
-        paymentStatus: initialData.paymentStatus,
+        name: initialData.name || '',
+        category: initialData.category || 'venue',
+        quotation: initialData.quotation || 0,
+        negotiatedPrice: initialData.negotiatedPrice || 0,
+        bookingStatus: initialData.bookingStatus || 'inquired',
+        paymentStatus: initialData.paymentStatus || 'unpaid',
         contactName: initialData.contactName || '',
         phone: initialData.phone || '',
         email: initialData.email || '',
@@ -153,7 +153,7 @@ export const VendorFormModal: React.FC<{
 
           <Input
             label="Phone"
-            placeholder="+91 9876543210"
+            placeholder="919876543210"
             error={errors.phone?.message}
             {...register('phone')}
           />

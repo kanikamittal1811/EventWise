@@ -2,20 +2,7 @@ import { ref, set, update, remove } from 'firebase/database';
 import { database, isFirebaseConfigured } from '../firebase/config';
 import { Guest } from '../../types/guest';
 import { GuestFormData } from '../../schemas/guest.schema';
-import { LOCAL_EVENTS_KEY, notifyLocalEventsChanged, getLocalDemoEvents } from '../../constants/dummyData';
-
-function getLocalEvents(): any {
-  return getLocalDemoEvents();
-}
-
-function saveLocalEvents(events: any) {
-  try {
-    localStorage.setItem(LOCAL_EVENTS_KEY, JSON.stringify(events));
-  } catch (err) {
-    console.warn('[GuestService] Failed to write localStorage:', err);
-  }
-  notifyLocalEventsChanged();
-}
+import { getLocalEvents, saveLocalEvents } from '../storage/localEventStorage';
 
 export const GuestService = {
   async addGuest(eventId: string, data: GuestFormData): Promise<string> {

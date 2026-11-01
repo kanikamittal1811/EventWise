@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from 'react';
 import { UserProfile } from '../types/user';
 import { AuthService } from '../services/firebase/authService';
 import { isFirebaseConfigured } from '../services/firebase/config';
@@ -30,53 +30,65 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => unsubscribe();
   }, []);
 
-  const login = async (email: string, pass: string) => {
+  const login = useCallback(async (email: string, pass: string) => {
     const loggedUser = await AuthService.login(email, pass);
     setUser(loggedUser);
     return loggedUser;
-  };
+  }, []);
 
-  const signUp = async (email: string, pass: string, name: string) => {
+  const signUp = useCallback(async (email: string, pass: string, name: string) => {
     const newUser = await AuthService.signUp(email, pass, name);
     setUser(newUser);
     return newUser;
-  };
+  }, []);
 
-  const signInWithGoogle = async () => {
+  const signInWithGoogle = useCallback(async () => {
     const gUser = await AuthService.signInWithGoogle();
     setUser(gUser);
     return gUser;
-  };
+  }, []);
 
-  const signInAsDemoUser = async () => {
+  const signInAsDemoUser = useCallback(async () => {
     const demoUser = await AuthService.signInAsDemoUser();
     setUser(demoUser);
     return demoUser;
-  };
+  }, []);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     await AuthService.logout();
     setUser(null);
-  };
+  }, []);
 
-  const resetPassword = async (email: string) => {
+  const resetPassword = useCallback(async (email: string) => {
     await AuthService.resetPassword(email);
-  };
+  }, []);
+
+  const contextValue = useMemo<AuthContextType>(
+    () => ({
+      user,
+      loading,
+      isFirebaseConfigured,
+      login,
+      signUp,
+      signInWithGoogle,
+      signInAsDemoUser,
+      logout,
+      resetPassword,
+    }),
+    [
+      user,
+      loading,
+      login,
+      signUp,
+      signInWithGoogle,
+      signInAsDemoUser,
+      logout,
+      resetPassword,
+    ]
+  );
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        loading,
-        isFirebaseConfigured,
-        login,
-        signUp,
-        signInWithGoogle,
-        signInAsDemoUser,
-        logout,
-        resetPassword,
-      }}
-    >
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );

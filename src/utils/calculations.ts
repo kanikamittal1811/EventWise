@@ -53,10 +53,53 @@ export function calculateBudgetSummary(
   };
 }
 
+export interface CategorySpend {
+  totalExpenseAmount: number;
+  totalPaidAmount: number;
+  pendingAmount: number;
+}
+
+/**
+ * Pre-aggregates spending across all categories in a single O(E) pass.
+ * Prevents O(C * E) quadratic iteration in list components.
+ */
+export function calculateAllCategoriesSpend(
+  expenses: Record<string, Expense> = {}
+): Record<string, CategorySpend> {
+  const result: Record<string, CategorySpend> = {};
+
+  Object.values(expenses).forEach((exp) => {
+    const catId = exp.categoryId;
+    if (!catId) return;
+
+    if (!result[catId]) {
+      result[catId] = {
+        totalExpenseAmount: 0,
+        totalPaidAmount: 0,
+        pendingAmount: 0,
+      };
+    }
+
+    const amount = Number(exp.amount) || 0;
+    const paid = Number(exp.paidAmount) || 0;
+
+    result[catId].totalExpenseAmount = roundCurrency(result[catId].totalExpenseAmount + amount);
+    result[catId].totalPaidAmount = roundCurrency(result[catId].totalPaidAmount + paid);
+  });
+
+  for (const catId of Object.keys(result)) {
+    result[catId].pendingAmount = roundCurrency(
+      Math.max(0, result[catId].totalExpenseAmount - result[catId].totalPaidAmount)
+    );
+  }
+
+  return result;
+}
+
 export function calculateCategorySpend(
   categoryId: string,
   expenses: Record<string, Expense> = {}
-): { totalExpenseAmount: number; totalPaidAmount: number; pendingAmount: number } {
+): CategorySpend {
   let totalExpenseAmount = 0;
   let totalPaidAmount = 0;
 

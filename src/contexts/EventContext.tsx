@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
+import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { EventItem } from '../types/event';
 import { BudgetSummary } from '../types/budget';
@@ -105,30 +105,39 @@ export const EventProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return calculateTaskProgress(event.tasks || {});
   }, [event]);
 
-  const updateEvent = async (updates: Partial<EventItem>) => {
-    if (!eventId) return;
-    await EventService.updateEvent(eventId, updates);
-  };
+  const updateEvent = useCallback(
+    async (updates: Partial<EventItem>) => {
+      if (!eventId) return;
+      await EventService.updateEvent(eventId, updates);
+    },
+    [eventId]
+  );
 
-  const deleteEvent = async () => {
-    if (!eventId || !user) return;
-    await EventService.deleteEvent(eventId, user.uid);
-    navigate('/events');
-  };
+  const deleteEvent = useCallback(
+    async () => {
+      if (!eventId || !user) return;
+      await EventService.deleteEvent(eventId, user.uid);
+      navigate('/events');
+    },
+    [eventId, user, navigate]
+  );
+
+  const contextValue = useMemo<EventContextType>(
+    () => ({
+      event,
+      loading,
+      error,
+      budgetSummary,
+      guestSummary,
+      taskProgress,
+      updateEvent,
+      deleteEvent,
+    }),
+    [event, loading, error, budgetSummary, guestSummary, taskProgress, updateEvent, deleteEvent]
+  );
 
   return (
-    <EventContext.Provider
-      value={{
-        event,
-        loading,
-        error,
-        budgetSummary,
-        guestSummary,
-        taskProgress,
-        updateEvent,
-        deleteEvent,
-      }}
-    >
+    <EventContext.Provider value={contextValue}>
       {children}
     </EventContext.Provider>
   );
@@ -140,5 +149,9 @@ export const useEvent = () => {
     throw new Error('useEvent must be used within an EventProvider');
   }
   return context;
+};
+
+export const useOptionalEvent = () => {
+  return useContext(EventContext) || null;
 };
 

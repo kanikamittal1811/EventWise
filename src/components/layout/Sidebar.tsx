@@ -14,17 +14,11 @@ import {
   Settings,
 } from 'lucide-react';
 import clsx from 'clsx';
-import { useEvent } from '../../hooks/useEvent';
+import { useOptionalEvent } from '../../hooks/useEvent';
 
 export const Sidebar: React.FC = () => {
   const { eventId } = useParams<{ eventId: string }>();
-  let eventContext: any = null;
-  try {
-    // If inside EventProvider
-    eventContext = useEvent();
-  } catch {
-    // Outside event context
-  }
+  const eventContext = useOptionalEvent();
 
   const isWorkspace = Boolean(eventId);
 

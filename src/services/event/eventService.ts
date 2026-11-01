@@ -15,25 +15,10 @@ import { EventItem, EventFunction, ActivityItem } from '../../types/event';
 import { EventFormData } from '../../schemas/event.schema';
 import { DEFAULT_BUDGET_CATEGORIES } from '../../constants/categories';
 import {
-  LOCAL_EVENTS_KEY,
   LOCAL_EVENTS_CHANGED_EVENT,
-  getLocalDemoEvents,
-  notifyLocalEventsChanged,
   seedLocalDemoData,
 } from '../../constants/dummyData';
-
-function getLocalEvents(): Record<string, EventItem> {
-  return getLocalDemoEvents();
-}
-
-function saveLocalEvents(events: Record<string, EventItem>) {
-  try {
-    localStorage.setItem(LOCAL_EVENTS_KEY, JSON.stringify(events));
-  } catch (err) {
-    console.warn('[EventService] Could not write to localStorage:', err);
-  }
-  notifyLocalEventsChanged();
-}
+import { getLocalEvents, saveLocalEvents } from '../storage/localEventStorage';
 
 export const EventService = {
   async createEvent(

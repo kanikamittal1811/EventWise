@@ -1,15 +1,27 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Trash2, Edit2, Tag } from 'lucide-react';
 import { useBudget } from '../../hooks/useBudget';
 import { formatCurrency } from '../../utils/formatters';
-import { calculateCategorySpend } from '../../utils/calculations';
+import { calculateAllCategoriesSpend, CategorySpend } from '../../utils/calculations';
 import { useEvent } from '../../hooks/useEvent';
+import { BudgetCategory } from '../../types/budget';
+
+const DEFAULT_SPEND: CategorySpend = {
+  totalExpenseAmount: 0,
+  totalPaidAmount: 0,
+  pendingAmount: 0,
+};
 
 export const CategoryList: React.FC<{
-  onEditCategory: (category: any) => void;
+  onEditCategory: (category: BudgetCategory) => void;
 }> = ({ onEditCategory }) => {
   const { categories, deleteCategory, currency } = useBudget();
   const { event } = useEvent();
+
+  // Pre-aggregate spending across all categories in a single O(E) pass
+  const spendingMap = useMemo(() => {
+    return calculateAllCategoriesSpend(event?.budget?.expenses || {});
+  }, [event?.budget?.expenses]);
 
   if (categories.length === 0) {
     return (
@@ -22,7 +34,7 @@ export const CategoryList: React.FC<{
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
       {categories.map((cat) => {
-        const spend = calculateCategorySpend(cat.id, event?.budget?.expenses || {});
+        const spend = spendingMap[cat.id] || DEFAULT_SPEND;
         const percentage = cat.allocatedAmount > 0
           ? Math.min(100, Math.round((spend.totalPaidAmount / cat.allocatedAmount) * 100))
           : 0;

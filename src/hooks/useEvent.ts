@@ -1,2 +1,3 @@
-export { useEvent } from '../contexts/EventContext';
+export { useEvent, useOptionalEvent } from '../contexts/EventContext';
+
 

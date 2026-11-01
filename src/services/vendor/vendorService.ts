@@ -3,20 +3,7 @@ import { database, isFirebaseConfigured } from '../firebase/config';
 import { Vendor } from '../../types/vendor';
 import { VendorFormData } from '../../schemas/vendor.schema';
 import { roundCurrency } from '../../utils/calculations';
-import { LOCAL_EVENTS_KEY, notifyLocalEventsChanged, getLocalDemoEvents } from '../../constants/dummyData';
-
-function getLocalEvents(): any {
-  return getLocalDemoEvents();
-}
-
-function saveLocalEvents(events: any) {
-  try {
-    localStorage.setItem(LOCAL_EVENTS_KEY, JSON.stringify(events));
-  } catch (err) {
-    console.warn('[VendorService] Failed to write localStorage:', err);
-  }
-  notifyLocalEventsChanged();
-}
+import { getLocalEvents, saveLocalEvents } from '../storage/localEventStorage';
 
 export const VendorService = {
   async addVendor(eventId: string, data: VendorFormData): Promise<string> {

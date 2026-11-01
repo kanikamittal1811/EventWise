@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { z } from 'zod';
 import { VENDOR_CATALOG, CatalogVendor } from './vendorCatalog';
+import { filterCatalogVendors } from '../src/utils/vendorFilter';
 
 dotenv.config();
 
@@ -1029,42 +1030,20 @@ app.post('/api/gemini/generate-image', aiLimiter, async (_req: Request, res: Res
  */
 app.get('/api/vendors/catalog', (req: Request, res: Response) => {
   const category = req.query.category as string | undefined;
-  const budgetTier = req.query.budgetTier as string | undefined;
+  const budgetTier = req.query.budgetTier as any;
   const city = req.query.city as string | undefined;
   const minBudget = req.query.minBudget ? Number(req.query.minBudget) : undefined;
   const maxBudget = req.query.maxBudget ? Number(req.query.maxBudget) : undefined;
   const search = req.query.search as string | undefined;
 
-  let filtered = [...VENDOR_CATALOG];
-
-  if (category && category !== 'all') {
-    filtered = filtered.filter((v) => v.category === category);
-  }
-  if (budgetTier && budgetTier !== 'all') {
-    filtered = filtered.filter((v) => v.budgetTier === budgetTier);
-  }
-  if (city && city !== 'all') {
-    filtered = filtered.filter((v) => v.city.toLowerCase() === city.toLowerCase());
-  }
-  if (minBudget !== undefined && !isNaN(minBudget)) {
-    filtered = filtered.filter((v) => v.quotation >= minBudget);
-  }
-  if (maxBudget !== undefined && !isNaN(maxBudget)) {
-    filtered = filtered.filter((v) => v.quotation <= maxBudget);
-  }
-  if (search && search.trim()) {
-    const q = search.trim().toLowerCase();
-    filtered = filtered.filter(
-      (v) =>
-        v.name.toLowerCase().includes(q) ||
-        v.city.toLowerCase().includes(q) ||
-        v.description.toLowerCase().includes(q) ||
-        v.specialties.some((s) => s.toLowerCase().includes(q))
-    );
-  }
-
-  // Sort by rating descending by default
-  filtered.sort((a, b) => b.rating - a.rating);
+  const filtered = filterCatalogVendors(VENDOR_CATALOG, {
+    category,
+    budgetTier,
+    city,
+    minBudget,
+    maxBudget,
+    search,
+  });
 
   return res.json({
     success: true,

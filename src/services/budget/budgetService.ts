@@ -3,20 +3,7 @@ import { database, isFirebaseConfigured } from '../firebase/config';
 import { BudgetCategory, Expense } from '../../types/budget';
 import { BudgetCategoryFormData, ExpenseFormData } from '../../schemas/budget.schema';
 import { roundCurrency } from '../../utils/calculations';
-import { LOCAL_EVENTS_KEY, notifyLocalEventsChanged, getLocalDemoEvents } from '../../constants/dummyData';
-
-function getLocalEvents(): any {
-  return getLocalDemoEvents();
-}
-
-function saveLocalEvents(events: any) {
-  try {
-    localStorage.setItem(LOCAL_EVENTS_KEY, JSON.stringify(events));
-  } catch (err) {
-    console.warn('[BudgetService] Failed to write localStorage:', err);
-  }
-  notifyLocalEventsChanged();
-}
+import { getLocalEvents, saveLocalEvents } from '../storage/localEventStorage';
 
 export const BudgetService = {
   async setTotalBudget(eventId: string, total: number): Promise<void> {

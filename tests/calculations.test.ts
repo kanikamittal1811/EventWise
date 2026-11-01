@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   calculateBudgetSummary,
   calculateCategorySpend,
+  calculateAllCategoriesSpend,
   calculateGuestMetrics,
   calculateTaskProgress,
   roundCurrency,
@@ -191,6 +192,52 @@ describe('Deterministic Financial and Metric Calculations', () => {
     expect(progress.inProgress).toBe(1);
     expect(progress.pending).toBe(1);
     expect(progress.percentage).toBe(50);
+  });
+
+  it('calculateAllCategoriesSpend aggregates all categories in a single O(E) pass', () => {
+    const expenses: Record<string, Expense> = {
+      e1: {
+        id: 'e1',
+        categoryId: 'venue',
+        title: 'Hall Rent',
+        amount: 400000,
+        paidAmount: 150000,
+        status: 'partial',
+        createdAt: 1,
+      },
+      e2: {
+        id: 'e2',
+        categoryId: 'venue',
+        title: 'Generator',
+        amount: 25000,
+        paidAmount: 25000,
+        status: 'paid',
+        createdAt: 2,
+      },
+      e3: {
+        id: 'e3',
+        categoryId: 'catering',
+        title: 'Food Advance',
+        amount: 100000,
+        paidAmount: 80000,
+        status: 'partial',
+        createdAt: 3,
+      },
+    };
+
+    const aggregated = calculateAllCategoriesSpend(expenses);
+
+    expect(aggregated.venue).toBeDefined();
+    expect(aggregated.venue.totalExpenseAmount).toBe(425000);
+    expect(aggregated.venue.totalPaidAmount).toBe(175000);
+    expect(aggregated.venue.pendingAmount).toBe(250000);
+
+    expect(aggregated.catering).toBeDefined();
+    expect(aggregated.catering.totalExpenseAmount).toBe(100000);
+    expect(aggregated.catering.totalPaidAmount).toBe(80000);
+    expect(aggregated.catering.pendingAmount).toBe(20000);
+
+    expect(aggregated.nonExistent).toBeUndefined();
   });
 });
 

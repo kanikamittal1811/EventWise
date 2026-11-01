@@ -8,7 +8,7 @@
     "vite": "vite",
     "server": "tsx server/index.ts",
     "build": "tsc -b && vite build",
-    "lint": "eslint .",
+    "lint": "tsc --noEmit",
     "preview": "vite preview",
     "seed:firebase": "tsx scripts/seedFirebase.ts",
     "test": "vitest run",

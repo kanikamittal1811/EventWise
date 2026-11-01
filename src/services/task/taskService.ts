@@ -2,20 +2,7 @@ import { ref, set, update, remove } from 'firebase/database';
 import { database, isFirebaseConfigured } from '../firebase/config';
 import { Task, TaskStatus } from '../../types/task';
 import { TaskFormData } from '../../schemas/task.schema';
-import { LOCAL_EVENTS_KEY, notifyLocalEventsChanged, getLocalDemoEvents } from '../../constants/dummyData';
-
-function getLocalEvents(): any {
-  return getLocalDemoEvents();
-}
-
-function saveLocalEvents(events: any) {
-  try {
-    localStorage.setItem(LOCAL_EVENTS_KEY, JSON.stringify(events));
-  } catch (err) {
-    console.warn('[TaskService] Failed to write localStorage:', err);
-  }
-  notifyLocalEventsChanged();
-}
+import { getLocalEvents, saveLocalEvents } from '../storage/localEventStorage';
 
 export const TaskService = {
   async addTask(eventId: string, data: TaskFormData): Promise<string> {

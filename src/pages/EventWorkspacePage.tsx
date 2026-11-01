@@ -50,8 +50,10 @@ import { EventService } from '../services/event/eventService';
 import { Vendor } from '../types/vendor';
 import { Task } from '../types/task';
 import { Guest } from '../types/guest';
-import { Modal } from '../components/common/Modal';
-import { Input } from '../components/common/Input';
+import { AiGeneratedInvitation } from '../types/ai';
+import { AddFunctionModal } from '../components/events/AddFunctionModal';
+import { AddCategoryModal } from '../components/budget/AddCategoryModal';
+import { AddExpenseModal } from '../components/budget/AddExpenseModal';
 
 export const EventWorkspacePage: React.FC = () => {
   const { tab = 'overview' } = useParams<{ tab?: string }>();
@@ -77,74 +79,15 @@ export const EventWorkspacePage: React.FC = () => {
   const [selectedGuest, setSelectedGuest] = useState<Guest | null>(null);
   const [showFunctionModal, setShowFunctionModal] = useState(false);
 
-  // Function Modal Fields
-  const [functionName, setFunctionName] = useState('');
-  const [functionDate, setFunctionDate] = useState('');
-  const [functionTime, setFunctionTime] = useState('');
-  const [functionVenue, setFunctionVenue] = useState('');
-
-  // Category Modal Fields
-  const [categoryName, setCategoryName] = useState('');
-  const [categoryAmount, setCategoryAmount] = useState(0);
-
-  // Expense Modal Fields
-  const [expTitle, setExpTitle] = useState('');
-  const [expCatId, setExpCatId] = useState('');
-  const [expAmount, setExpAmount] = useState(0);
-  const [expPaid, setExpPaid] = useState(0);
-  const [expStatus, setExpStatus] = useState<'pending' | 'partial' | 'paid'>('pending');
-
   // Invitation state
   const [invitationGenerating, setInvitationGenerating] = useState(false);
-  const [generatedInvitation, setGeneratedInvitation] = useState<any>(null);
+  const [generatedInvitation, setGeneratedInvitation] = useState<AiGeneratedInvitation | null>(null);
   const [copiedInvite, setCopiedInvite] = useState(false);
 
   if (!event) return null;
 
   const countdown = getDaysUntil(event.eventDate);
   const functionsList = event.functions ? Object.values(event.functions) : [];
-
-  const handleAddFunction = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!functionName || !functionDate) return;
-    await EventService.addEventFunction(event.id, {
-      name: functionName,
-      date: functionDate,
-      startTime: functionTime,
-      venue: functionVenue,
-    });
-    setFunctionName('');
-    setFunctionDate('');
-    setShowFunctionModal(false);
-  };
-
-  const handleCreateCategory = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!categoryName) return;
-    await addCategory({
-      name: categoryName,
-      allocatedAmount: categoryAmount,
-    });
-    setCategoryName('');
-    setCategoryAmount(0);
-    setShowAddCategory(false);
-  };
-
-  const handleCreateExpense = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!expTitle || !expCatId || expAmount <= 0) return;
-    await addExpense({
-      title: expTitle,
-      categoryId: expCatId,
-      amount: expAmount,
-      paidAmount: expPaid,
-      status: expStatus,
-    });
-    setExpTitle('');
-    setExpAmount(0);
-    setExpPaid(0);
-    setShowAddExpense(false);
-  };
 
   const handleGenerateInvitation = async () => {
     setInvitationGenerating(true);
@@ -733,150 +676,32 @@ export const EventWorkspacePage: React.FC = () => {
       />
 
       {/* Function Modal */}
-      <Modal
+      <AddFunctionModal
         isOpen={showFunctionModal}
         onClose={() => setShowFunctionModal(false)}
-        title="Add Event Function"
-        description="For multi-day or multi-stage celebrations"
-      >
-        <form onSubmit={handleAddFunction} className="space-y-4">
-          <Input
-            label="Function Name"
-            placeholder="e.g. Sangeet & Cocktails"
-            value={functionName}
-            onChange={(e) => setFunctionName(e.target.value)}
-            required
-          />
-          <div className="grid grid-cols-2 gap-3">
-            <Input
-              label="Date"
-              type="date"
-              value={functionDate}
-              onChange={(e) => setFunctionDate(e.target.value)}
-              required
-            />
-            <Input
-              label="Timing"
-              placeholder="e.g. 7:00 PM - 11:30 PM"
-              value={functionTime}
-              onChange={(e) => setFunctionTime(e.target.value)}
-            />
-          </div>
-          <Input
-            label="Venue / Location"
-            placeholder="e.g. Poolside Lawn"
-            value={functionVenue}
-            onChange={(e) => setFunctionVenue(e.target.value)}
-          />
-          <div className="flex justify-end gap-2 pt-3">
-            <Button type="button" variant="outline" onClick={() => setShowFunctionModal(false)}>
-              Cancel
-            </Button>
-            <Button type="submit">Save Function</Button>
-          </div>
-        </form>
-      </Modal>
+        onSubmit={async (data) => {
+          await EventService.addEventFunction(event.id, data);
+        }}
+      />
 
       {/* Category Modal */}
-      <Modal
+      <AddCategoryModal
         isOpen={showAddCategory}
         onClose={() => setShowAddCategory(false)}
-        title="Add Budget Category"
-      >
-        <form onSubmit={handleCreateCategory} className="space-y-4">
-          <Input
-            label="Category Name"
-            placeholder="e.g. Stage Production & AV"
-            value={categoryName}
-            onChange={(e) => setCategoryName(e.target.value)}
-            required
-          />
-          <Input
-            label="Allocated Amount"
-            type="number"
-            value={categoryAmount}
-            onChange={(e) => setCategoryAmount(Number(e.target.value))}
-            required
-          />
-          <div className="flex justify-end gap-2 pt-3">
-            <Button type="button" variant="outline" onClick={() => setShowAddCategory(false)}>
-              Cancel
-            </Button>
-            <Button type="submit">Add Category</Button>
-          </div>
-        </form>
-      </Modal>
+        onSubmit={async (data) => {
+          await addCategory(data);
+        }}
+      />
 
       {/* Expense Modal */}
-      <Modal
+      <AddExpenseModal
         isOpen={showAddExpense}
         onClose={() => setShowAddExpense(false)}
-        title="Record Expense"
-      >
-        <form onSubmit={handleCreateExpense} className="space-y-4">
-          <Input
-            label="Description"
-            placeholder="e.g. Venue Advance Deposit"
-            value={expTitle}
-            onChange={(e) => setExpTitle(e.target.value)}
-            required
-          />
-          <div>
-            <label className="block text-xs font-semibold text-charcoal-700 tracking-wide uppercase mb-1.5">
-              Category
-            </label>
-            <select
-              value={expCatId}
-              onChange={(e) => setExpCatId(e.target.value)}
-              className="w-full bg-white border border-charcoal-200 text-charcoal text-sm rounded-xl p-2.5 focus:outline-none"
-              required
-            >
-              <option value="">Select Category</option>
-              {event.budget?.categories &&
-                Object.values(event.budget.categories).map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-            </select>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <Input
-              label="Total Cost"
-              type="number"
-              value={expAmount}
-              onChange={(e) => setExpAmount(Number(e.target.value))}
-              required
-            />
-            <Input
-              label="Amount Paid So Far"
-              type="number"
-              value={expPaid}
-              onChange={(e) => setExpPaid(Number(e.target.value))}
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-charcoal-700 tracking-wide uppercase mb-1.5">
-              Payment Status
-            </label>
-            <select
-              value={expStatus}
-              onChange={(e) => setExpStatus(e.target.value as any)}
-              className="w-full bg-white border border-charcoal-200 text-charcoal text-sm rounded-xl p-2.5 focus:outline-none"
-            >
-              <option value="pending">Pending</option>
-              <option value="partial">Partial</option>
-              <option value="paid">Fully Paid</option>
-            </select>
-          </div>
-          <div className="flex justify-end gap-2 pt-3">
-            <Button type="button" variant="outline" onClick={() => setShowAddExpense(false)}>
-              Cancel
-            </Button>
-            <Button type="submit">Record Expense</Button>
-          </div>
-        </form>
-      </Modal>
+        categories={event.budget?.categories}
+        onSubmit={async (data) => {
+          await addExpense(data);
+        }}
+      />
     </div>
   );
 };

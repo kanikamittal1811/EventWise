@@ -1,22 +1,26 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Trash2, CheckCircle2, Clock, DollarSign, Calendar } from 'lucide-react';
 import { useBudget } from '../../hooks/useBudget';
 import { Badge } from '../common/Badge';
 import { formatCurrency, formatDate } from '../../utils/formatters';
+import { Expense } from '../../types/budget';
 
 export const ExpenseTracker: React.FC<{
-  onEditExpense: (expense: any) => void;
+  onEditExpense: (expense: Expense) => void;
 }> = ({ onEditExpense }) => {
   const { expenses, categories, deleteExpense, updateExpense, currency } = useBudget();
 
+  // Index categories by ID for O(1) lookups during table rendering
+  const categoryMap = useMemo(() => {
+    return new Map(categories.map((c) => [c.id, c]));
+  }, [categories]);
+
   const getCategoryName = (categoryId: string) => {
-    const found = categories.find((c) => c.id === categoryId);
-    return found?.name || 'Uncategorized';
+    return categoryMap.get(categoryId)?.name || 'Uncategorized';
   };
 
   const getCategoryColor = (categoryId: string) => {
-    const found = categories.find((c) => c.id === categoryId);
-    return found?.color || '#6366F1';
+    return categoryMap.get(categoryId)?.color || '#6366F1';
   };
 
   if (expenses.length === 0) {

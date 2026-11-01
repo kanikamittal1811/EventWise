@@ -1,0 +1,55 @@
+{
+  "rules": {
+    "users": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid",
+        "profile": {
+          ".validate": "newData.hasChildren(['uid', 'email', 'displayName', 'createdAt']) && newData.child('uid').val() === auth.uid && newData.child('displayName').isString() && newData.child('displayName').val().length <= 100"
+        }
+      }
+    },
+    "userEvents": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    },
+    "events": {
+      ".indexOn": ["ownerId", "eventDate"],
+      "$eventId": {
+        ".read": "auth != null && (data.child('ownerId').val() === auth.uid || data.child('collaborators/' + auth.uid).exists())",
+        ".write": "auth != null && ((!data.exists() && newData.child('ownerId').val() === auth.uid) || (data.exists() && (data.child('ownerId').val() === auth.uid || data.child('collaborators/' + auth.uid + '/role').val() === 'editor') && (!newData.exists() || newData.child('ownerId').val() === data.child('ownerId').val())))",
+        ".validate": "newData.hasChildren(['id', 'ownerId', 'name', 'category', 'eventDate', 'totalBudget']) && newData.child('name').isString() && newData.child('name').val().length >= 2 && newData.child('name').val().length <= 100 && newData.child('totalBudget').isNumber() && newData.child('totalBudget').val() >= 0",
+        "budget": {
+          "total": {
+            ".validate": "newData.isNumber() && newData.val() >= 0"
+          },
+          "expenses": {
+            "$expenseId": {
+              ".validate": "newData.hasChildren(['id', 'categoryId', 'title', 'amount', 'status']) && newData.child('amount').isNumber() && newData.child('amount').val() > 0 && newData.child('title').isString() && newData.child('title').val().length <= 150"
+            }
+          }
+        },
+        "tasks": {
+          "$taskId": {
+            ".validate": "newData.hasChildren(['id', 'title', 'priority', 'status', 'dueDate']) && newData.child('title').isString() && newData.child('title').val().length <= 200"
+          }
+        },
+        "guests": {
+          "$guestId": {
+            ".validate": "newData.hasChildren(['id', 'name', 'category', 'rsvpStatus']) && newData.child('name').isString() && newData.child('name').val().length <= 150"
+          }
+        }
+      }
+    },
+    "images": {
+      ".indexOn": ["ownerId", "eventId"],
+      "$imageId": {
+        ".read": "auth != null && (data.child('ownerId').val() === auth.uid || root.child('events/' + data.child('eventId').val() + '/collaborators/' + auth.uid).exists() || root.child('events/' + data.child('eventId').val() + '/ownerId').val() === auth.uid)",
+        ".write": "auth != null && ((!data.exists() && newData.child('ownerId').val() === auth.uid && (root.child('events/' + newData.child('eventId').val() + '/ownerId').val() === auth.uid || root.child('events/' + newData.child('eventId').val() + '/collaborators/' + auth.uid + '/role').val() === 'editor')) || (data.exists() && data.child('ownerId').val() === auth.uid))",
+        ".validate": "newData.hasChildren(['id', 'ownerId', 'eventId', 'base64Data', 'sizeBytes', 'mimeType', 'width', 'height', 'imageType']) && newData.child('sizeBytes').val() <= 1048576 && (newData.child('mimeType').val() === 'image/jpeg' || newData.child('mimeType').val() === 'image/png' || newData.child('mimeType').val() === 'image/webp')"
+      }
+    }
+  }
+}
